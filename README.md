@@ -6,8 +6,8 @@ Made in SDL2 as a learning exercise.
 - Set to a fixed resolution `700`x`800`
 - Doesn't have `any know` memory leaks
 
-#### `LMB` to uncover tile.
-#### `RMB` to flag tile.
+#### `LMB` to uncover a tile.
+#### `RMB` to flag a tile.
 
 ## Screenshots
 ![](res/posters/img1.png)
