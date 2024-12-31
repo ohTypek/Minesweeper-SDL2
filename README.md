@@ -1,6 +1,14 @@
 # Minesweeper
 A simple game made in [SDL2](https://www.libsdl.org/) with C++.
 
+## Info
+Made in SDL2 as a learning exercise.
+- Set to a fixed resolution `700`x`800`
+- Doesn't have `any know` memory leaks
+
+#### `LMB` to uncover tile.
+#### `RMB` to flag tile.
+
 ## Screenshots
 ![](res/posters/img1.png)
 ![](res/posters/img2.png)
