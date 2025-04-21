@@ -19,7 +19,7 @@ int COLUMNS = (int)((WINDOW_HEIGHT-150) / 50);
 
 bool firstClick = true;
 int startTime = 0;
-int passed = 240;
+int passed = 0;
 
 void buttonClick(Game& g, SDL_Event& event, SDL_Texture* blank, SDL_Texture* click, TTF_Font* font);
 
@@ -110,13 +110,13 @@ int main(int argc, char* argv[]) {
       window.render("by obejrzec plansze", sFont, {0,0,0,0}, Vector2f(WINDOW_WIDTH/2, 660));
     } else if(game.state == 1) {
       for(Field& f : game.getFields()) {
-        if(f.isFlagged) {
-          if(f.getValue() != "*")
-            f.changeTex(crossFieldTex);
-        } else {
-          f.changeTex(clickFieldTex);
+        if(f.getValue() == "*") {
           f.isUncovered = true;
+          f.changeTex(clickFieldTex);
         }
+
+        if(f.isFlagged && f.getValue() != "*") 
+          f.changeTex(crossFieldTex);
         
         window.render(f, fieldFont);
       }
