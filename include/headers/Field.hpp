@@ -1,6 +1,5 @@
 #pragma once
 
-#include<iostream>
 #include<SDL.h>
 #include<SDL_image.h>
 #include<SDL_ttf.h>
@@ -12,22 +11,16 @@
 class Field : public Entity {
 private:
   int col, row;
-  int index;
-  SDL_Texture* tex;
-  SDL_Surface* valueSurf;
-  char value;
+  std::string value;
+  TTF_Font* font;
+  SDL_Surface* surf;
 public:
-  bool clicked;
-  bool flagged;
-  Field(Vector2f pos, SDL_Texture* tex, Vector2f size, int c, int r, int index);
-  void setTex(SDL_Texture* ntex);
-  SDL_Texture* getTex();
-  SDL_Surface* getSurf();
-  void setSurf(TTF_Font* font);
-  char getVal();
-  void setVal(char nval);
+  bool isFlagged;
+  bool isUncovered;
+  Field(int col, int row, TTF_Font* font, SDL_Texture* texture, Vector2f pos, Vector2f size = Vector2f(-1,-1));
+  ~Field();
   int getC();
-  int getR();
-  int getIndex();
-  bool isClicked(int pX, int pY);
+  std::string getValue();
+  void setValue(std::string val);
+  SDL_Surface* getSurf();
 };

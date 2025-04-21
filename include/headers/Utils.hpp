@@ -4,9 +4,22 @@
 
 namespace utils {
   inline float hireTimeInSeconds() {
-    float t = SDL_GetTicks();
-    t*=0.001f;
+    return SDL_GetTicks()/1000;
+  }
 
-    return t;
+  inline std::string transformSecondsToClock(int seconds) {
+    
+    std::string minutes = std::to_string(seconds/60), 
+                   secs = std::to_string(seconds%60);
+
+    if(seconds/60 < 10) minutes.insert(0,1,'0');
+    if(seconds%60 < 10)    secs.insert(0,1,'0');
+
+    
+
+    std::string msg = "";
+    msg += minutes + ":" + secs; 
+
+    return msg;
   }
 }

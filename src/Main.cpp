@@ -1,22 +1,27 @@
 #include<SDL.h>
 #include<SDL_image.h>
+#include<SDL_ttf.h>
 #include<iostream>
 #include<vector>
 
 #include"Math.hpp"
+#include"Utils.hpp"
 #include"RenderWindow.hpp"
 #include"Entity.hpp"
 #include"Field.hpp"
 #include"Game.hpp"
-#include"Utils.hpp"
 
-const int WINDOW_WIDTH = 800;
-const int WINDOW_HEIGHT = 700;
+int WINDOW_WIDTH = 800;
+int WINDOW_HEIGHT = 700;
 
-const int COLUMNS = 11;
-const int ROWS = 16;
+int ROWS = (int)(WINDOW_WIDTH / 50);
+int COLUMNS = (int)((WINDOW_HEIGHT-150) / 50);
 
-const int BOMBS = 35;
+bool firstClick = true;
+int startTime = 0;
+int passed = 240;
+
+void buttonClick(Game& g, SDL_Event& event, SDL_Texture* blank, SDL_Texture* click, TTF_Font* font);
 
 int main(int argc, char* argv[]) {
   if(SDL_Init(SDL_INIT_VIDEO) < 0) {
@@ -33,133 +38,130 @@ int main(int argc, char* argv[]) {
 
   RenderWindow window("Minesweeper", WINDOW_WIDTH, WINDOW_HEIGHT);
   window.setWindowIcon("res/icons/300x300.png");
-
-  TTF_Font* bFont = window.openFont("fonts/counterFont.ttf", 80);
+  
+  TTF_Font* bFont = window.openFont("fonts/counterFont.ttf", 90);
   TTF_Font* sFont = window.openFont("fonts/counterFont.ttf", 40);
   TTF_Font* fieldFont = window.openFont("fonts/fieldFont.ttf", 30);
 
-  SDL_Surface* bombs = TTF_RenderText_Blended(bFont, "00", {255,0,0,255});
-  SDL_Surface* time = TTF_RenderText_Blended(bFont, "000", {255,0,0,255});
-
+  SDL_Texture* clickFieldTex = window.loadTexture("res/gfx/clickedField.png");
+  SDL_Texture* crossFieldTex = window.loadTexture("res/gfx/crossedField.png");
   SDL_Texture* fieldTex = window.loadTexture("res/gfx/field.png");
-  SDL_Texture* clickedFieldTex = window.loadTexture("res/gfx/clickedField.png");
-  SDL_Texture* crossedField = window.loadTexture("res/gfx/crossedField.png");
-  SDL_Texture* smileTex = window.loadTexture("res/gfx/smile.png");
-  SDL_Texture* deadTex = window.loadTexture("res/gfx/dead.png");
-  SDL_Texture* fontBg = window.loadTexture("res/gfx/fontBg.png");
+
   SDL_Texture* borderTex = window.loadTexture("res/gfx/border.png");
+  SDL_Texture* bgTex = window.loadTexture("res/gfx/fontBg.png");
+  SDL_Texture* deadTex = window.loadTexture("res/gfx/dead.png");
+  SDL_Texture* smileTex = window.loadTexture("res/gfx/smile.png");
 
-  Entity bombsBg(Vector2f(25, (WINDOW_HEIGHT-50*COLUMNS-bombs->h-5)/2), fontBg, Vector2f(bombs->w+20, bombs->h+5));
-  Entity timeBg(Vector2f(WINDOW_WIDTH-45-time->w, (WINDOW_HEIGHT-50*COLUMNS-time->h-5)/2), fontBg, Vector2f(time->w+20, time->h+5));
-  Entity smileBg(Vector2f((WINDOW_WIDTH-60)/2, (WINDOW_HEIGHT-50*COLUMNS-60)/2), fieldTex, Vector2f(60,60));
-  Entity smile(Vector2f((WINDOW_WIDTH-50)/2, (WINDOW_HEIGHT-50*COLUMNS-50)/2), smileTex, Vector2f(50,50));
-  Entity dead(Vector2f((WINDOW_WIDTH-50)/2, (WINDOW_HEIGHT-50*COLUMNS-50)/2), deadTex, Vector2f(50,50));
-  Entity border(Vector2f(0,0), borderTex, Vector2f(800,150));
+  Entity border(borderTex, Vector2f(0,0));
+  Entity bombsText(bgTex, Vector2f(15,30), Vector2f(150, 90));
+  Entity timeText(bgTex, Vector2f(635,30), Vector2f(150, 90));
+  Entity faceBg(fieldTex, Vector2f(370,45), Vector2f(60,60));
+  Entity face(smileTex, Vector2f(375,50), Vector2f(50,50));
 
-  Game game;
-
-  std::vector<Field> fields = game.createFields(fieldTex, fieldFont, COLUMNS, ROWS, WINDOW_HEIGHT, BOMBS);
-
-  int startTime = 0;
-  int currentTime = 0;
-
-  bool firstClick = true;
-  bool showFields = false;
+  Game game(35, ROWS, COLUMNS);
+  game.createFields(fieldTex, fieldFont);
 
   bool gameRunning = true;
-  while (gameRunning) {
+  while(gameRunning) {
     SDL_Event event;
     while(SDL_PollEvent(&event)) {
-      if(event.type == SDL_QUIT)
-        gameRunning = false;
-            
-      if(event.type == SDL_MOUSEBUTTONUP && game.gameState < 2) {
-        firstClick = false;
-        game.revealField(event, fields, clickedFieldTex, crossedField, game);
-        game.checkWin(fields, currentTime-startTime);
+      switch(event.type) {
+        case SDL_QUIT:
+          gameRunning = false;
+          break;
+        case SDL_MOUSEBUTTONUP:
+          buttonClick(game, event, fieldTex, clickFieldTex, fieldFont);
+          break;
+        default:
+          break;
       }
+    }
 
-      if(event.type == SDL_MOUSEBUTTONUP) {
-        int mouseX = event.motion.x;
-        int mouseY = event.motion.y;
+    if(game.state == 0) face.changeTex(smileTex);
+    if(game.state == 1) face.changeTex(deadTex);
 
-        int resetBtnX = smileBg.getPos().x;
-        int resetBtnY = smileBg.getPos().y;
-
-        if(mouseX > resetBtnX && mouseX < resetBtnX + smileBg.getSize().x 
-            && mouseY > resetBtnY && mouseY < resetBtnY + smileBg.getSize().y) {
-            firstClick = true;
-            game.gameState = 0;
-            fields.clear();
-            fields = game.createFields(fieldTex, fieldFont, COLUMNS, ROWS, WINDOW_HEIGHT, BOMBS);
-          }
-
-        if(game.gameState == 2 && !showFields) {
-          if(mouseY > 155 && currentTime+3 <= utils::hireTimeInSeconds())
-            showFields = true;
-        }
-        }
-      }
-      
     window.setRenderColor(185,185,185);
     window.clear();
 
-    if(firstClick)
-      startTime = utils::hireTimeInSeconds();
-
-    if(game.gameState < 2)
-      currentTime = utils::hireTimeInSeconds();
-
-    const char* timeC = game.getTimeC(startTime, currentTime).c_str();
-
-    SDL_Surface* bombs = TTF_RenderText_Blended(bFont, std::to_string(game.getBombAmount()).c_str(), {255,0,0,255});
-    SDL_Surface* time = TTF_RenderText_Blended(bFont, timeC, {255,0,0,255});
-
-    window.render(bombsBg);
-    window.render(timeBg);
-    window.render(bombs, Vector2f(25+(bombs->w+20)/2-(bombs->w)/2, (WINDOW_HEIGHT-50*COLUMNS-bombs->h)/2));
-    window.render(time, Vector2f(WINDOW_WIDTH-35-time->w, (WINDOW_HEIGHT-50*COLUMNS-time->h)/2));
     window.render(border);
-
-    window.render(smileBg);
+    window.render(bombsText);
+    window.render(std::to_string(game.getBombsLeft()).c_str(), bFont, {255,0,0,255}, Vector2f(90, 75));
+    window.render(timeText);
     
-    if(game.gameState == 3)
-      window.render(dead);
-    else
-      window.render(smile);
+    std::string time;
 
-    if(game.gameState == 2 && showFields == false) {
-      SDL_Surface* winText = TTF_RenderText_Blended(bFont, "Wygrywasz!", {0,0,0,255});
-      window.render(winText, Vector2f((WINDOW_WIDTH-winText->w)/2, (50*COLUMNS-winText->h)/2));
-      SDL_Surface* timeText = TTF_RenderText_Blended(bFont, ("Twoj czas: " + game.stylizeTime(currentTime-startTime)).c_str(), {0,0,0,255});
-      window.render(timeText, Vector2f((WINDOW_WIDTH-timeText->w)/2, (50*COLUMNS-timeText->h)/2+70));
-      SDL_Surface* recText = TTF_RenderText_Blended(bFont, ("Rekord: " + game.stylizeTime(game.getHighScore())).c_str(), {0,0,0,255});
-      window.render(recText, Vector2f((WINDOW_WIDTH-recText->w)/2, (50*COLUMNS-recText->h)/2+140));
-      SDL_Surface* infoText1 = TTF_RenderText_Blended(sFont, "Kliknij lewy przycisk myszy", {0,0,0,255});
-      window.render(infoText1, Vector2f((WINDOW_WIDTH-infoText1->w)/2, WINDOW_HEIGHT-100));
-      SDL_Surface* infoText2 = TTF_RenderText_Blended(sFont, "by zobaczyc plansze", {0,0,0,255});
-      window.render(infoText2, Vector2f((WINDOW_WIDTH-infoText2->w)/2, WINDOW_HEIGHT-60));
+    if(game.state == 0) passed = (int)(utils::hireTimeInSeconds()-startTime);
+
+    if(passed == 0 || firstClick) time = "000";
+    else if(passed < 10) time = "00" + std::to_string(passed);
+    else if(passed < 100) time = "0" + std::to_string(passed);
+    else time = std::to_string(passed);
+
+    window.render(time.c_str(), bFont, {255,0,0,255}, Vector2f(710, 75));
+
+    window.render(faceBg);
+    window.render(face);
+
+    if(game.state == 3) {
+      window.render("Wygrywasz!", bFont, {0,0,0,0}, Vector2f(WINDOW_WIDTH/2, 250));
+      window.render(("Twoj czas: " + utils::transformSecondsToClock(passed)).c_str(), bFont, {0,0,0,0}, Vector2f(WINDOW_WIDTH/2, 325));
+      window.render(("Rekord: " + utils::transformSecondsToClock(game.getRecord())).c_str(), bFont, {0,0,0,0}, Vector2f(WINDOW_WIDTH/2, 400));
+      window.render("Kliknij lewy przycisk myszy", sFont, {0,0,0,0}, Vector2f(WINDOW_WIDTH/2, 620));
+      window.render("by obejrzec plansze", sFont, {0,0,0,0}, Vector2f(WINDOW_WIDTH/2, 660));
+    } else if(game.state == 1) {
+      for(Field& f : game.getFields()) {
+        if(f.isFlagged) {
+          if(f.getValue() != "*")
+            f.changeTex(crossFieldTex);
+        } else {
+          f.changeTex(clickFieldTex);
+          f.isUncovered = true;
+        }
+        
+        window.render(f, fieldFont);
+      }
     } else {
-      for(Field& f : fields)
-        window.render(f);
-      for(int i = 0; i<fields.size(); i++)
-        fields[i].setSurf(fieldFont);
+    for(Field& f : game.getFields())
+      window.render(f, fieldFont);
     }
-
 
     window.display();
   }
-  
-  TTF_CloseFont(bFont);
-  TTF_CloseFont(sFont);
-  TTF_CloseFont(fieldFont);
-  SDL_DestroyTexture(fieldTex);
-  SDL_DestroyTexture(clickedFieldTex);
-  SDL_DestroyTexture(deadTex);
-  SDL_DestroyTexture(smileTex);
-  SDL_DestroyTexture(fontBg);
-  SDL_DestroyTexture(borderTex);
+
   window.destroy();
+  TTF_Quit();
+  IMG_Quit();
   SDL_Quit();
   return 0;
+}
+
+void buttonClick(Game& g, SDL_Event& event, SDL_Texture* blank, SDL_Texture* click, TTF_Font* font) {
+  int index = g.getFieldID(event.motion.x, event.motion.y-150);
+
+  if(firstClick) { 
+    g.fillFields(index); 
+    startTime = utils::hireTimeInSeconds();
+    firstClick = false; 
+  }
+
+  if(g.state == 0) {
+    g.revealField(index, event.button.button, blank, click);
+    g.checkWin(passed);
+  }
+  else if(g.state == 3 && utils::hireTimeInSeconds()-startTime >= passed+2) {
+    g.state = 2;
+    for(Field& f : g.getFields()) {
+      if(!f.isUncovered) f.isFlagged = true;
+    }
+  }
+
+
+  if(event.motion.x > 370 && event.motion.x < 430 
+  && event.motion.y > 45  && event.motion.y < 105)
+  {
+    firstClick = true;
+    g.state = 0;
+    g.createFields(blank, font);
+    passed = 0;
+  }
 }

@@ -1,230 +1,171 @@
 #include<iostream>
+#include<vector>
+#include<ctime>
+
 #include<SDL.h>
 #include<SDL_image.h>
-#include<ctime>
-#include<fstream>
+#include<SDL_ttf.h>
 
+#include"Utils.hpp"
+#include"Math.hpp"
+#include"Entity.hpp"
 #include"Field.hpp"
 #include"Game.hpp"
 
-Game::Game()
-: gameState(0), bombs(0), initBombs(0), highScore(0) {
+Game::Game(int pBomb, int row, int col) 
+ : bombs(pBomb), rows(row), cols(col), state(0), flagged(0) 
+{
   std::string temp;
-
   std::ifstream read("res/saves/hs.txt");
   std::getline(read, temp);
   read.close();
 
-  if(temp == "0" || temp == " " || temp == "")
-    highScore = 10000;
-  else 
-    highScore = stoi(temp);
+  record = std::stoi(temp);
+
+  if(record < 0) record = INT32_MAX;
 }
 
-std::vector<Field> Game::createFields(SDL_Texture* tex, TTF_Font* font, int COLUMNS, int ROWS, int WINDOW_HEIGHT, int BOMBS) {
-  bombs = 0;
-  std::vector<Field> fields;
-
-  int i = 0;
-  for(int col = 0; col<COLUMNS; col++) {
-    for(int row = 0; row<ROWS; row++) {
-      const char* id = (std::to_string(col)+"_"+std::to_string(row)).c_str();
-      Field field(Vector2f(50*row,50*col+(WINDOW_HEIGHT-50*COLUMNS)), tex, Vector2f(50,50), col, row, i++);
-      fields.push_back(field);
-    }
-  }
-
-  placeBombs(BOMBS, fields);
-  assignValue(fields);
-
-  for(Field& f : fields) {
-    f.setSurf(font);
-  }
-
+std::vector<Field>& Game::getFields() {
   return fields;
 }
 
-void Game::placeBombs(int bombs, std::vector<Field> &fields) {
-  this->initBombs = bombs;
-  srand(time(0));
-  while(this->bombs < bombs) {
-    const int index = rand()%177;
-    if(fields[index].getVal() != '*') {
-      this->bombs++;
-      fields[index].setVal('*');
+void Game::createFields(SDL_Texture* field, TTF_Font* font) {
+  flagged = 0;
+  fields.clear();
+  for(int y = 0; y<cols; y++) {
+    for(int x = 0; x<rows; x++) {
+      Field f(x,y, font, field, Vector2f(x*50, y*50+150));
+      fields.push_back(f);
     }
   }
 }
 
-void Game::assignValue(std::vector<Field> &fields) {
-    for(int i = 0; i<fields.size(); i++) {
-      if(fields[i].getVal() == '*')
-        continue;
+void Game::fillFields(int ID) {
+  flagged = 0;
 
-      int b = 0;
-
-      if(i-17>=0 && fields[i-17].getC() == fields[i].getC()-1 && fields[i-17].getVal() == '*')
-        b++;
-      if(i-16>=0 && fields[i-16].getC() == fields[i].getC()-1 && fields[i-16].getVal() == '*')
-        b++;
-      if(i-15>=0 && fields[i-15].getC() == fields[i].getC()-1 && fields[i-15].getVal() == '*')
-        b++;
-      if(i-1>=0  && fields[i-1].getC()  == fields[i].getC()   && fields[i-1].getVal() == '*')
-        b++;
-      if(i+1<=fields.size()  && fields[i+1].getC()  == fields[i].getC()   && fields[i+1].getVal() == '*')
-        b++;
-      if(i+15<=fields.size() && fields[i+15].getC() == fields[i].getC()+1 && fields[i+15].getVal() == '*')
-        b++;
-      if(i+16<=fields.size() && fields[i+16].getC() == fields[i].getC()+1 && fields[i+16].getVal() == '*')
-        b++;
-      if(i+17<=fields.size() && fields[i+17].getC() == fields[i].getC()+1 && fields[i+17].getVal() == '*')
-        b++;
-
-      fields[i].setVal(static_cast<char>('0'+ b));
-    }
-}
-
-void Game::flags(bool state) {
-  if(state)
-    bombs--;
-  else 
-    bombs++;
-}
-
-void Game::revealField(SDL_Event& event, std::vector<Field> &fields, SDL_Texture* click, SDL_Texture* cross, Game& game) {
-  if(event.button.button == SDL_BUTTON_LEFT) {
-    for(Field& f : fields) {
-      if(!f.clicked && !f.flagged && f.isClicked(event.motion.x, event.motion.y)) {
-        f.setTex(click);
-        game.revealBlanks(fields, f.getIndex(), click);
-        if(f.getVal() == '*') {
-          game.lost(fields, click, cross);
-        }
-        break;
-      }
-    }
-  } else if(event.button.button == SDL_BUTTON_RIGHT) {
-      for(Field& f : fields) {
-        if(!f.clicked && f.isClicked(event.motion.x, event.motion.y)) {
-          f.clicked = false;
-          if(!f.flagged && !f.clicked && game.getBombAmount() > 0) {
-            f.flagged = true;
-            game.flags(true);
-          } else if(!f.clicked && f.flagged) {
-            f.flagged = false;
-            game.flags(false);
-          }
-          break;
-        }
-      }
-    }
-}
-
-void Game::revealBlanks(std::vector<Field> &fields, int i, SDL_Texture* click) {
-  int currentCol = fields[i].getC();
-
-  if(fields[i].getVal() != '0')
-    return;
-
-  const int neighbours[8] = {
-      -1, -15, -16, -17,
-       1,  15,  16,  17
+  // Place bombs
+  srand(time(0));
+  int neighbours[8] = {
+    -1, -rows, -rows-1, -rows+1,
+     1,  rows,  rows-1,  rows+1
   };
 
-  for(const auto& n : neighbours) {
-    if(i+n < 0 || i+n > fields.size()) continue; 
+  int temp = 0;
+  while(temp < bombs) {
+    int randomID = rand() % (rows*cols);
 
-    Field& currentField = fields[i+n];
+    bool correctField = true;
+    for(int& n : neighbours)
+      if(randomID == ID+n || randomID == ID) correctField = false;
 
-    if(n < -1 && currentField.getC()+1 != currentCol)
-      continue;
-    else if(n > 1 && currentField.getC()-1 != currentCol)
-      continue;
-    else if((n == 1 || n == -1) && currentField.getC() != currentCol)
-      continue;
+    if(!correctField || fields[randomID].getValue() != "") continue;
 
-    if(currentField.flagged || currentField.clicked) continue;
+    fields[randomID].setValue("*");
+    temp++;
+  }
 
-    currentField.clicked = true;
-    currentField.setTex(click);
+  // Assign Values
+  for(int i = 0; i<rows*cols; i++) {
+    if(fields[i].getValue() == "*") continue;
+    int touchingBombs = 0;
+    for(int& n : neighbours) {
+      if(i+n < 0 || i+n >= rows*cols) continue;
 
-    if(currentField.getVal() == '0') {
-      revealBlanks(fields, i+n, click);
+      int newC = fields[i+n].getC();
+      int oldC = fields[i].getC();
+
+      if((n == -rows-1 || n == -1 || n == rows-1) && newC+1 != oldC) continue;
+      if((n == -rows+1 || n == +1 || n == rows+1) && newC-1 != oldC) continue;
+      if((n == -rows   || n == rows) && newC != oldC) continue;
+
+      if(fields[i+n].getValue() == "*") touchingBombs++;
+    }
+    fields[i].setValue(std::to_string(touchingBombs));
+  }
+}
+
+int Game::getFieldID(float mouseX, float mouseY) {
+  int mX = (int)(mouseX/50);
+  int mY = (int)(mouseY/50);
+
+  return mY * rows + mX;
+}
+
+void Game::revealBlanks(int ID, SDL_Texture* click) {
+  int neighbours[8] = {
+    -1, -rows, -rows-1, -rows+1,
+     1,  rows,  rows-1,  rows+1
+  };
+
+  for(int& n : neighbours) {
+    if(ID+n >= rows*cols || ID+n < 0) continue;
+    if(fields[ID+n].isUncovered) continue;
+
+    int newC = fields[ID+n].getC();
+    int oldC = fields[ID].getC();
+
+    if((n == -rows-1 || n == -1 || n == rows-1) && newC+1 != oldC) continue;
+    if((n == -rows+1 || n == +1 || n == rows+1) && newC-1 != oldC) continue;
+    if((n == -rows   || n == rows) && newC != oldC) continue;
+
+    fields[ID+n].changeTex(click);
+    fields[ID+n].isUncovered = true;
+    fields[ID+n].isFlagged = false;
+
+    if(fields[ID+n].getValue() == "0") revealBlanks(ID+n, click);
+  }
+}
+
+void Game::revealField(int ID, int button, SDL_Texture* blank, SDL_Texture* click) {
+  Field& workingField = fields[ID];
+
+  if(workingField.isUncovered) return;
+
+  if(button == SDL_BUTTON_LEFT) {
+    if(workingField.isFlagged) return;
+
+    workingField.changeTex(click);
+    workingField.isUncovered = true;
+
+    if(workingField.getValue() == "*") state = 1;
+    if(workingField.getValue() == "0") revealBlanks(ID, click);
+  }
+
+  if(button == SDL_BUTTON_RIGHT) {
+    if(workingField.isFlagged) {
+      workingField.isFlagged = false;
+      flagged -= 1;
+    }
+    else {
+      if(flagged < bombs) {
+        workingField.isFlagged = true;
+        flagged += 1;
+      }
     }
   }
 }
 
-int Game::getBombAmount() {
-  return bombs;
+int Game::getBombsLeft() {
+  return bombs - flagged;
 }
 
-std::string Game::getTimeC(int startTime, int currentTime) {
-  int elapsedTime = currentTime - startTime;
-  std::string timeC;
+void Game::checkWin(int time) {
+  bool win = true;
 
-  if(elapsedTime < 10)
-    timeC = "00" + std::to_string(currentTime-startTime);
-  else if(elapsedTime < 100)
-    timeC = "0" + std::to_string(currentTime-startTime);
-  else
-    timeC = std::to_string(currentTime-startTime);
-
-  return timeC;
-}
-
-void Game::checkWin(std::vector<Field> &fields, int time) {
-  
-  int clickedCount = 0;
   for(Field& f : fields) {
-    if(f.clicked && f.getVal() != '*')
-      clickedCount++;
+    if(!f.isUncovered && f.getValue() != "*") win = false;
   }
 
-  if(clickedCount >= 176-initBombs) {
-    setHighScore(time);
-    gameState = 2;
-  }
+  if(win) state = 3;
+  if(time < record && win) record = time;
 }
 
-int Game::getHighScore() {
-  return highScore;
+int Game::getRecord() {
+  return record;
 }
 
-void Game::setHighScore(int hg) {
-  if(hg > highScore)
-    return;
-
-  highScore = hg;
-
-  std::ofstream write("res/saves/hs.txt");
-  write << highScore;
-  write.close();
-}
-
-std::string Game::stylizeTime(int time) {
-  int m = (time-time%60)/60;
-  int s = time%60;
-
-  std::string min = std::to_string(m);
-  std::string sec = std::to_string(s);
-
-  if(m < 10)
-    min = "0" + min;
-  if(s < 10)
-    sec = "0" + sec;
-
-  return min + ":" + sec;
-}
-
-void Game::lost(std::vector<Field> &fields, SDL_Texture* click, SDL_Texture* cross) {
-  for(Field& f : fields) {
-    if(f.getVal() == '*' && !f.flagged) {
-      f.clicked = true;
-      f.setTex(click);
-    }
-    if(f.getVal() != '*' && f.flagged) {
-      f.setTex(cross);
-    }
-    gameState = 3;
-  }
+Game::~Game() {
+  std::ofstream file("res/saves/hs.txt");
+  file << record;
+  file.close();
 }

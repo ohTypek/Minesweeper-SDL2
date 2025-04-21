@@ -2,18 +2,18 @@
 
 #include<SDL.h>
 #include<SDL_image.h>
-
 #include"Math.hpp"
 
 class Entity {
 private:
-  SDL_Texture* texture;
-  Vector2f pos;
+  SDL_Texture* tex;
   Vector2f size;
+  Vector2f pos;
 public:
-  Entity(Vector2f pos, SDL_Texture* tex, Vector2f size);
+  Entity(SDL_Texture* texture, Vector2f pos, Vector2f size = Vector2f(-1,-1));
   SDL_Texture* getTex();
-  Vector2f getPos();
-  void setPos(Vector2f npos);
+  void changeTex(SDL_Texture* texture);
   Vector2f getSize();
+  Vector2f getPos();
+  void setPos(float x, float y);
 };

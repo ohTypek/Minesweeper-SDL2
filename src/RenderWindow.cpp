@@ -17,20 +17,6 @@ RenderWindow::RenderWindow(const char* title, int w, int h) : window(NULL), rend
     std::cout << "Couldn't create renderer: " << SDL_GetError() << std::endl;
 }
 
-void RenderWindow::setWindowIcon(const char* path) {
-  SDL_Surface* icon = NULL;
-
-  icon = IMG_Load(path);
-
-  if(renderer == NULL)
-    std::cout << "Couldn't load icon: " << SDL_GetError() << std::endl;
-
-  SDL_SetWindowIcon(window, icon);
-
-  SDL_FreeSurface(icon);
-}
-
-
 SDL_Texture* RenderWindow::loadTexture(const char* filePath) {
   SDL_Texture* tex = NULL;
   tex = IMG_LoadTexture(renderer, filePath);
@@ -49,6 +35,19 @@ TTF_Font* RenderWindow::openFont(const char* filePath, int fontSize) {
     std::cout << "Couldn't open texture: " << SDL_GetError() << std::endl;
 
   return font;
+}
+
+void RenderWindow::setWindowIcon(const char* path) {
+  SDL_Surface* icon = NULL;
+
+  icon = IMG_Load(path);
+
+  if(renderer == NULL)
+    std::cout << "Couldn't load icon: " << SDL_GetError() << std::endl;
+
+  SDL_SetWindowIcon(window, icon);
+
+  SDL_FreeSurface(icon);
 }
 
 void RenderWindow::destroy() {
@@ -80,7 +79,7 @@ void RenderWindow::render(Entity& ent) {
   SDL_RenderCopy(renderer, ent.getTex(), &src, &dst);
 }
 
-void RenderWindow::render(Field& f) {
+void RenderWindow::render(Field& f, TTF_Font* font) {
   SDL_Rect src;
   src.x = 0;
   src.y = 0;
@@ -95,47 +94,50 @@ void RenderWindow::render(Field& f) {
 
   SDL_RenderCopy(renderer, f.getTex(), &src, &dst);
 
-  src.w = f.getSurf()->w;
-  src.h = f.getSurf()->h;
+  if(f.isUncovered && f.getValue() != "0") {
+    SDL_Texture* tex = SDL_CreateTextureFromSurface(renderer, f.getSurf());
 
-  dst.x += (f.getSize().x-src.w)/2+2;
-  dst.y += (f.getSize().y-src.h)/2;
-  dst.w = src.w;
-  dst.h = src.h;
+    src.w = f.getSurf()->w;
+    src.h = f.getSurf()->h;
+    dst.x -= src.w/2 - dst.w/2 - 2;
+    dst.y += 5;
+    dst.w = src.w;
+    dst.h = src.h;
 
-  SDL_Texture* tex = NULL;
-  tex = SDL_CreateTextureFromSurface(renderer, f.getSurf());
+    SDL_RenderCopy(renderer, tex, &src, &dst);
+    SDL_DestroyTexture(tex);
+  }
 
-  if(tex == NULL)
-    std::cout << "Couldn't create font texture: " << SDL_GetError() << std::endl;
-
-  SDL_RenderCopy(renderer, tex, &src, &dst);
-  SDL_DestroyTexture(tex);
-  SDL_FreeSurface(f.getSurf());
+  if(f.isFlagged) {
+    this->render("`", font, {0,0,0,0}, Vector2f(dst.x+dst.w/2, dst.y+dst.h/2));
+  }
 }
 
-void RenderWindow::render(SDL_Surface* surf, Vector2f pos) {
-  SDL_Texture* tex = NULL;
-  tex = SDL_CreateTextureFromSurface(renderer, surf);
+void RenderWindow::render(const char* text, TTF_Font* font, SDL_Color color, Vector2f pos) {
+  SDL_Surface* textSurf = NULL;
+  textSurf = TTF_RenderText_Blended(font, text, color);
+  if(textSurf == NULL) std::cout << "Couldn't create font surface: " << SDL_GetError() << std::endl;
 
-  if(tex == NULL)
-    std::cout << "Couldn't create font texture: " << SDL_GetError() << std::endl;
+  SDL_Texture* texture = NULL;
+  texture = SDL_CreateTextureFromSurface(renderer, textSurf);  
+  if(texture == NULL) std::cout << "Couldn't create font texture: " << SDL_GetError() << std::endl;
 
   SDL_Rect src;
   src.x = 0;
   src.y = 0;
-  src.w = surf->w;
-  src.h = surf->h;
+  src.w = textSurf->w;
+  src.h = textSurf->h;
 
   SDL_Rect dst;
-  dst.x = pos.x;
-  dst.y = pos.y;
+  dst.x = pos.x - textSurf->w/2;
+  dst.y = pos.y - textSurf->h/2;
   dst.w = src.w;
   dst.h = src.h;
 
-  SDL_RenderCopy(renderer, tex, &src, &dst);
-  SDL_DestroyTexture(tex);
-  SDL_FreeSurface(surf);
+  SDL_RenderCopy(renderer, texture, &src, &dst);
+
+  SDL_DestroyTexture(texture);
+  SDL_FreeSurface(textSurf);
 }
 
 void RenderWindow::display() {
