@@ -110,13 +110,12 @@ int main(int argc, char* argv[]) {
       window.render("by obejrzec plansze", sFont, {0,0,0,0}, Vector2f(WINDOW_WIDTH/2, 660));
     } else if(game.state == 1) {
       for(Field& f : game.getFields()) {
-        if(f.getValue() == "*") {
+        if(f.isFlagged && f.getValue() != "*") 
+          f.changeTex(crossFieldTex);
+        else if(f.getValue() == "*" && !f.isFlagged) {
           f.isUncovered = true;
           f.changeTex(clickFieldTex);
         }
-
-        if(f.isFlagged && f.getValue() != "*") 
-          f.changeTex(crossFieldTex);
         
         window.render(f, fieldFont);
       }
