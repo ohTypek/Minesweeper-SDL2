@@ -21,7 +21,16 @@ bool firstClick = true;
 int startTime = 0;
 int passed = 0;
 
-void buttonClick(Game& g, SDL_Event& event, SDL_Texture* blank, SDL_Texture* click, TTF_Font* font);
+struct FieldTextures {
+  SDL_Texture* crossed;
+  SDL_Texture* clicked;
+  SDL_Texture* normal;
+};
+
+void buttonClick(Game& g, SDL_Event& event, FieldTextures& texs, TTF_Font* font);
+void stateDefault(Game& g, RenderWindow& w, TTF_Font* font);
+void stateOne(Game& g, RenderWindow& w, FieldTextures& texs, TTF_Font* font);
+void stateThr(Game& g, RenderWindow& w, TTF_Font* sFont, TTF_Font* bFont);
 
 int main(int argc, char* argv[]) {
   if(SDL_Init(SDL_INIT_VIDEO) < 0) {
@@ -43,9 +52,10 @@ int main(int argc, char* argv[]) {
   TTF_Font* sFont = window.openFont("fonts/counterFont.ttf", 40);
   TTF_Font* fieldFont = window.openFont("fonts/fieldFont.ttf", 30);
 
-  SDL_Texture* clickFieldTex = window.loadTexture("res/gfx/clickedField.png");
-  SDL_Texture* crossFieldTex = window.loadTexture("res/gfx/crossedField.png");
-  SDL_Texture* fieldTex = window.loadTexture("res/gfx/field.png");
+  FieldTextures fieldTextures;
+  fieldTextures.crossed = window.loadTexture("res/gfx/crossedField.png");
+  fieldTextures.clicked = window.loadTexture("res/gfx/clickedField.png");
+  fieldTextures.normal  = window.loadTexture("res/gfx/field.png");
 
   SDL_Texture* borderTex = window.loadTexture("res/gfx/border.png");
   SDL_Texture* bgTex = window.loadTexture("res/gfx/fontBg.png");
@@ -55,11 +65,11 @@ int main(int argc, char* argv[]) {
   Entity border(borderTex, Vector2f(0,0));
   Entity bombsText(bgTex, Vector2f(15,30), Vector2f(150, 90));
   Entity timeText(bgTex, Vector2f(635,30), Vector2f(150, 90));
-  Entity faceBg(fieldTex, Vector2f(370,45), Vector2f(60,60));
+  Entity faceBg(fieldTextures.normal, Vector2f(370,45), Vector2f(60,60));
   Entity face(smileTex, Vector2f(375,50), Vector2f(50,50));
 
-  Game game(35, ROWS, COLUMNS);
-  game.createFields(fieldTex, fieldFont);
+  Game game(30, ROWS, COLUMNS);
+  game.createFields(fieldTextures.normal, fieldFont);
 
   bool gameRunning = true;
   while(gameRunning) {
@@ -70,7 +80,7 @@ int main(int argc, char* argv[]) {
           gameRunning = false;
           break;
         case SDL_MOUSEBUTTONUP:
-          buttonClick(game, event, fieldTex, clickFieldTex, fieldFont);
+          buttonClick(game, event, fieldTextures, fieldFont);
           break;
         default:
           break;
@@ -102,26 +112,19 @@ int main(int argc, char* argv[]) {
     window.render(faceBg);
     window.render(face);
 
-    if(game.state == 3) {
-      window.render("Wygrywasz!", bFont, {0,0,0,0}, Vector2f(WINDOW_WIDTH/2, 250));
-      window.render(("Twoj czas: " + utils::transformSecondsToClock(passed)).c_str(), bFont, {0,0,0,0}, Vector2f(WINDOW_WIDTH/2, 325));
-      window.render(("Rekord: " + utils::transformSecondsToClock(game.getRecord())).c_str(), bFont, {0,0,0,0}, Vector2f(WINDOW_WIDTH/2, 400));
-      window.render("Kliknij lewy przycisk myszy", sFont, {0,0,0,0}, Vector2f(WINDOW_WIDTH/2, 620));
-      window.render("by obejrzec plansze", sFont, {0,0,0,0}, Vector2f(WINDOW_WIDTH/2, 660));
-    } else if(game.state == 1) {
-      for(Field& f : game.getFields()) {
-        if(f.isFlagged && f.getValue() != "*") 
-          f.changeTex(crossFieldTex);
-        else if(f.getValue() == "*" && !f.isFlagged) {
-          f.isUncovered = true;
-          f.changeTex(clickFieldTex);
-        }
-        
-        window.render(f, fieldFont);
-      }
-    } else {
-    for(Field& f : game.getFields())
-      window.render(f, fieldFont);
+    switch(game.state) {
+      case 0:
+        stateDefault(game, window, fieldFont);
+        break;
+      case 1:
+        stateOne(game, window, fieldTextures, fieldFont);
+        break;
+      case 2:
+        stateDefault(game, window, fieldFont);
+        break;
+      case 3:
+        stateThr(game, window, sFont, bFont);
+        break;
     }
 
     window.display();
@@ -134,7 +137,7 @@ int main(int argc, char* argv[]) {
   return 0;
 }
 
-void buttonClick(Game& g, SDL_Event& event, SDL_Texture* blank, SDL_Texture* click, TTF_Font* font) {
+void buttonClick(Game& g, SDL_Event& event, FieldTextures& texs, TTF_Font* font) {
   int index = g.getFieldID(event.motion.x, event.motion.y-150);
 
   if(firstClick) { 
@@ -144,7 +147,7 @@ void buttonClick(Game& g, SDL_Event& event, SDL_Texture* blank, SDL_Texture* cli
   }
 
   if(g.state == 0) {
-    g.revealField(index, event.button.button, blank, click);
+    g.revealField(index, event.button.button, texs.normal, texs.clicked);
     g.checkWin(passed);
   }
   else if(g.state == 3 && utils::hireTimeInSeconds()-startTime >= passed+2) {
@@ -160,7 +163,33 @@ void buttonClick(Game& g, SDL_Event& event, SDL_Texture* blank, SDL_Texture* cli
   {
     firstClick = true;
     g.state = 0;
-    g.createFields(blank, font);
+    g.createFields(texs.normal, font);
     passed = 0;
   }
+}
+
+void stateOne(Game& g, RenderWindow& w, FieldTextures& texs, TTF_Font* font) {
+  for(Field& f : g.getFields()) {
+    if(f.isFlagged && f.getValue() != "*") 
+      f.changeTex(texs.crossed);
+    else if(f.getValue() == "*" && !f.isFlagged) {
+      f.isUncovered = true;
+      f.changeTex(texs.clicked);
+    }
+    
+    w.render(f, font);
+  }
+}
+
+void stateDefault(Game& g, RenderWindow& w, TTF_Font* font) {
+  for(Field& f : g.getFields())
+    w.render(f, font);
+}
+
+void stateThr(Game& g, RenderWindow& w, TTF_Font* sFont, TTF_Font* bFont) {
+  w.render("Wygrywasz!", bFont, {0,0,0,0}, Vector2f(WINDOW_WIDTH/2, 250));
+  w.render(("Twoj czas: " + utils::transformSecondsToClock(passed)).c_str(), bFont, {0,0,0,0}, Vector2f(WINDOW_WIDTH/2, 325));
+  w.render(("Rekord: " + utils::transformSecondsToClock(g.getRecord())).c_str(), bFont, {0,0,0,0}, Vector2f(WINDOW_WIDTH/2, 400));
+  w.render("Kliknij lewy przycisk myszy", sFont, {0,0,0,0}, Vector2f(WINDOW_WIDTH/2, 620));
+  w.render("by obejrzec plansze", sFont, {0,0,0,0}, Vector2f(WINDOW_WIDTH/2, 660));
 }

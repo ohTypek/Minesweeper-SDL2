@@ -15,8 +15,6 @@ namespace utils {
     if(seconds/60 < 10) minutes.insert(0,1,'0');
     if(seconds%60 < 10)    secs.insert(0,1,'0');
 
-    
-
     std::string msg = "";
     msg += minutes + ":" + secs; 
 
